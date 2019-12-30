@@ -1,4 +1,4 @@
-#USB-HID-MSX - MSX driver for USB HID keyboards
+# USB-HID-MSX - MSX driver for USB HID keyboards
 
 USB-HID uses low level execute-command sequences for all common USB and USB HID communication via CH376.
 
