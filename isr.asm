@@ -17,11 +17,8 @@
 
     DEFINE DEBUG 0
 
-H.TIMI EQU 0FD9Fh
+H.CHGE EQU 0FDC2h	
 SCNCNT EQU 0F3F6H
-INTHZ EQU 50
-NEWKEY EQU 0FBE5H
-MYADDRESS EQU 1
 PUTPNT EQU 0F3F8h
 GETPNT EQU 0F3FAh
 KEYBUF EQU 0FBF0h
@@ -29,46 +26,40 @@ KEYBUF EQU 0FBF0h
 ; BLOAD header
     db 0x0fe
     dw BEGIN, ENDADR, START_BASIC
-    org 0a004h
+    org 0c000h
 BEGIN:
 START_BASIC:
     ld hl,TXT_DRIVER_START
     call PRINT
 
-    ; install H.TIMI hook
-    ld hl, H.TIMI
+    ; okay, install H.TIMI hook
+    di
+    ; save old one
+    LD	HL,H.CHGE
+	LD	DE,OLD_HCHGE
+	LD	BC,5
+	LDIR
+    ; install new one
+    ld hl, H.CHGE
     ld (hl),0C3h ; JP
-    inc hl
-    ld (hl),low NEW_HTIMI
-    inc hl
-    ld (hl),high NEW_HTIMI
+    LD	HL,NEW_HTIMI
+	LD	(H.CHGE+1),HL
+    ei
     ret
 
 NEW_HTIMI:
-    push hl,bc,af
-    ; check if it's time to do a keyboard scan, just like the BIOS does it
-    ; takes precedence over the internal keyboard scan because SCNCNT never reaches zero in BIOS
-    LD	HL,SCNCNT
-	DEC	(HL)			        ; time for a keyboard scan ?
-	JR	NZ,_NEW_HTIMI_DONE		; nope, quit interrupt routine
-	IF INTHZ = 60
-		LD	(HL),250			    ; scanfrequency 2*1000/60 = 33 ms
-	ELSE
-		LD	(HL),250			    ; scanfrequency 1*1000/50 = 20 ms
-	ENDIF
+    ld a, (CAPS_TOGGLE) ; get stored toggle value
+    out (0ABh),a
+    xor 1
+    ld (CAPS_TOGGLE),a
 
-    ; convert a MSX scancode to a MSX keycode and add to buffer
-    ;ld A, 11111110b ; inverse bitmask, SHIFT pressed
-    ;LD (NEWKEY+6),A
-    ;LD A,00000100b ; bitmask
-	;LD B,11-4 ; row
-	;CALL 0D89H
+    pop af ; call address
+	pop	BC, DE, HL ; saved registers
     ld a, 'M'
+    ret
     call C0F55
 
-_NEW_HTIMI_DONE:
-    pop af,bc,hl
-    ret 
+    jp OLD_HCHGE		;old HOOK call  
 
 ;	Subroutine	put keycode in keyboardbuffer
 ;	Inputs		A = keycode
@@ -94,12 +85,14 @@ C10C2:
 	LD	A,L
 	CP	(KEYBUF+40) AND 255
 	RET	NZ			; not the end of buffer, quit
-	LD	HL,KEYBUF		; warp around to start of buffer
+	LD	HL,KEYBUF		; wrap around to start of buffer
 	RET
 
     include "print_bios.asm"
 
 TXT_NEWLINE:        DB "\r\n",0
 TXT_DRIVER_START:   DB "USB HID Driver started\r\n",0
-
+OLD_HCHGE: DS 5,0
+ALREADY_RUNNING     DB 0
+CAPS_TOGGLE: DB 00001100b
 ENDADR: 
